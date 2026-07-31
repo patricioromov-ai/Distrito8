@@ -426,7 +426,7 @@
     <input type="password" id="passInput" placeholder="Clave de acceso" autocomplete="current-password" onkeydown="if(event.key==='Enter')hacerLogin()">
     <button onclick="hacerLogin()">Ingresar</button>
     <div id="loginError"></div>
-    <p style="margin-top:14px;font-size:10px;color:#5C6559;">build 2026-07-30-1 · Distrito 8 (fixes: header Urgency FCM, encuadre mapa, capa apoyo electoral)</p>
+    <p style="margin-top:14px;font-size:10px;color:#5C6559;">build 2026-07-30-2 · Distrito 8 (fix raíz: geocodificación descarta coordenadas fuera de Chile)</p>
   </div>
 </div>
 
@@ -790,8 +790,8 @@
         </div>
         <div class="btnRow">
           <button class="btn btn-outline" onclick="forzarGeocodificacion()">Geocodificar más ahora</button>
-          <button class="btn btn-outline" onclick="forzarGeocodificacionLocales()" style="display:none;">Geocodificar locales de votación</button>
-          <button class="btn btn-outline" onclick="forzarGeocodificacionFerias()" style="display:none;">Geocodificar ferias libres</button>
+          <button class="btn btn-outline" onclick="forzarGeocodificacionLocales()">Geocodificar locales de votación</button>
+          <button class="btn btn-outline" onclick="forzarGeocodificacionFerias()">Geocodificar ferias libres</button>
           <button class="btn btn-outline" onclick="cargarMapa()">Actualizar mapa</button>
         </div>
       </div>
@@ -808,8 +808,8 @@
           <div class="modoTab" id="modoCalor" onclick="cambiarModoMapa('calor')">Mapa de calor</div>
         </div>
         <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:8px;">Capas:</span>
-        <button class="togglePill" id="pillCapaElectoral" onclick="toggleCapaElectoral()" style="display:none;">+ Apoyo electoral PDG por local</button>
-        <button class="togglePill" id="pillCapaFerias" onclick="toggleCapaFerias()" style="display:none;">+ Ferias libres</button>
+        <button class="togglePill" id="pillCapaElectoral" onclick="toggleCapaElectoral()">+ Apoyo electoral PDG por local</button>
+        <button class="togglePill" id="pillCapaFerias" onclick="toggleCapaFerias()">+ Ferias libres</button>
       </div>
       <div id="leyendaElectoral" style="display:none;font-size:11px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span>% apoyo PDG diputados 2025 por local de votación (rombos):</span>
@@ -2933,6 +2933,13 @@ async function forzarActualizarNoticias(){
 
 // ---------- MAPA DE MILITANTES ----------
 let UBICACIONES = [];
+// Mismo criterio que el backend (_coordenadaEsPlausibleChile en el .gs):
+// descarta coordenadas fuera de Chile continental antes de usarlas para
+// encuadrar el mapa, para no dejar todo invisible por un solo dato corrupto.
+function _coordenadaEsPlausibleChile(lat, lng){
+  return typeof lat === 'number' && typeof lng === 'number' &&
+    lat >= -56 && lat <= -17 && lng >= -76 && lng <= -66;
+}
 let mapaInstancia = null;
 let capaActual = null;
 let modoMapaActual = 'puntos';
@@ -2971,7 +2978,13 @@ async function cargarMapa(){
     // lo corrige, en vez de quedar roto por el resto de la sesión.
     setTimeout(() => {
       mapaInstancia.invalidateSize();
-      const puntosValidos = UBICACIONES.filter(p=>p.lat && p.lng).map(p=>[p.lat, p.lng]);
+      // Filtro defensivo adicional al del backend: un solo lat/lng corrupto
+      // (ej. de un geocode absurdo colado antes de este fix) arrastra
+      // fitBounds() a un centro sin sentido y deja invisibles TODOS los
+      // demás puntos, aunque estén perfectos.
+      const puntosValidos = UBICACIONES
+        .filter(p=>_coordenadaEsPlausibleChile(p.lat, p.lng))
+        .map(p=>[p.lat, p.lng]);
       if(puntosValidos.length){
         mapaInstancia.fitBounds(puntosValidos, {padding:[20,20], maxZoom:13});
       } else {
@@ -2981,11 +2994,8 @@ async function cargarMapa(){
     renderCapaMapa();
     cargarCoordinadoresParaCartera();
     cargarResumenCarteras();
-    // TEMPORAL — desactivado mientras se aísla y diagnostica el problema del
-    // mapa (ver notas de diagnóstico). Reactivar quitando el comentario de
-    // estas dos líneas una vez confirmado que Militantes funciona solo.
-    // cargarLocalesVotacion();
-    // cargarFeriasLibres();
+    cargarLocalesVotacion();
+    cargarFeriasLibres();
   } catch(err){
     document.getElementById('mapaProgreso').innerText = 'No se pudo cargar el mapa: ' + err.message;
   }
