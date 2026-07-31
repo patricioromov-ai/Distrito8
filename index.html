@@ -2952,12 +2952,6 @@ async function cargarMapa(){
     if(!filtrosMapaListos) poblarFiltrosMapa();
     if(!mapaInstancia){
       mapaInstancia = L.map('mapaDiv');
-      const puntosValidos = UBICACIONES.filter(p=>p.lat && p.lng).map(p=>[p.lat, p.lng]);
-      if(puntosValidos.length){
-        mapaInstancia.fitBounds(puntosValidos, {padding:[20,20], maxZoom:13});
-      } else {
-        mapaInstancia.setView([-33.30,-70.80], 10); // Encuadre Distrito 8: Cerrillos/Est. Central (sur) a Tiltil (norte)
-      }
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO', maxZoom: 18, subdomains: 'abcd'
       }).addTo(mapaInstancia);
@@ -2970,7 +2964,20 @@ async function cargarMapa(){
         }).addTo(mapaInstancia);
       });
     }
-    setTimeout(()=>mapaInstancia.invalidateSize(), 150);
+    // El encuadre se recalcula SIEMPRE (no solo la primera vez) — así si el
+    // mapa se creó una vez mientras la pestaña estaba oculta (contenedor de
+    // tamaño cero, un problema clásico de Leaflet que deja la vista rota en
+    // el mundo completo), "Actualizar mapa" o volver a entrar a la pestaña
+    // lo corrige, en vez de quedar roto por el resto de la sesión.
+    setTimeout(() => {
+      mapaInstancia.invalidateSize();
+      const puntosValidos = UBICACIONES.filter(p=>p.lat && p.lng).map(p=>[p.lat, p.lng]);
+      if(puntosValidos.length){
+        mapaInstancia.fitBounds(puntosValidos, {padding:[20,20], maxZoom:13});
+      } else {
+        mapaInstancia.setView([-33.30,-70.80], 10); // Encuadre Distrito 8: Cerrillos/Est. Central (sur) a Tiltil (norte)
+      }
+    }, 150);
     renderCapaMapa();
     cargarCoordinadoresParaCartera();
     cargarResumenCarteras();
