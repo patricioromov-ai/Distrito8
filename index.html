@@ -426,7 +426,7 @@
     <input type="password" id="passInput" placeholder="Clave de acceso" autocomplete="current-password" onkeydown="if(event.key==='Enter')hacerLogin()">
     <button onclick="hacerLogin()">Ingresar</button>
     <div id="loginError"></div>
-    <p style="margin-top:14px;font-size:10px;color:#5C6559;">build 2026-07-27-1 (fix email Meet)</p>
+    <p style="margin-top:14px;font-size:10px;color:#5C6559;">build 2026-07-30-1 · Distrito 8 (fixes: header Urgency FCM, encuadre mapa, capa apoyo electoral)</p>
   </div>
 </div>
 
@@ -3078,40 +3078,50 @@ function _colorPorApoyoPdg(pct){
   if(pct <= 7) return '#D68910';
   return '#1E8E5A';
 }
+let _procesandoCapaElectoral = false;
 function toggleCapaElectoral(){
-  capaElectoralVisible = !capaElectoralVisible;
-  document.getElementById('pillCapaElectoral').classList.toggle('on', capaElectoralVisible);
-  document.getElementById('leyendaElectoral').style.display = capaElectoralVisible ? 'flex':'none';
-  if(!mapaInstancia) return;
-  if(capaElectoralVisible){
-    capaElectoral = L.markerClusterGroup({
-      maxClusterRadius: 55,
-      disableClusteringAtZoom: 16,
-      iconCreateFunction: function(cluster){
-        const marcadores = cluster.getAllChildMarkers();
-        const promedio = marcadores.reduce((s,m)=>s+(m.options.pctPdg||0),0)/marcadores.length;
-        return L.divIcon({
-          html: `<div style="background:${_colorPorApoyoPdg(promedio)};width:38px;height:38px;border-radius:6px;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35);"><span style="transform:rotate(-45deg);color:#fff;font-weight:700;font-size:12px;">${marcadores.length}</span></div>`,
-          className: '', iconSize: [38,38]
-        });
-      }
-    });
-    LOCALES_VOTACION.forEach(p=>{
-      const tamano = 16 + Math.sqrt(p.electores||0)/12;
-      const color = _colorPorApoyoPdg(p.pctPdg);
-      const icono = L.divIcon({
-        className: '',
-        html: `<div style="width:${tamano}px;height:${tamano}px;background:${color};transform:rotate(45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>`,
-        iconSize: [tamano, tamano]
+  if(_procesandoCapaElectoral) return; // evita que clicks en cola se acumulen y se ejecuten en cascada
+  _procesandoCapaElectoral = true;
+  try{
+    capaElectoralVisible = !capaElectoralVisible;
+    document.getElementById('pillCapaElectoral').classList.toggle('on', capaElectoralVisible);
+    document.getElementById('leyendaElectoral').style.display = capaElectoralVisible ? 'flex':'none';
+    if(!mapaInstancia) return;
+    // Siempre se limpia la capa anterior antes de crear una nueva — así no
+    // quedan capas fantasma acumuladas de toggles anteriores.
+    if(capaElectoral){ mapaInstancia.removeLayer(capaElectoral); capaElectoral = null; }
+    if(capaElectoralVisible){
+      capaElectoral = L.markerClusterGroup({
+        maxClusterRadius: 55,
+        disableClusteringAtZoom: 16,
+        iconCreateFunction: function(cluster){
+          const marcadores = cluster.getAllChildMarkers();
+          const promedio = marcadores.reduce((s,m)=>s+(m.options.pctPdg||0),0)/marcadores.length;
+          return L.divIcon({
+            html: `<div style="background:${_colorPorApoyoPdg(promedio)};width:38px;height:38px;border-radius:6px;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35);"><span style="transform:rotate(-45deg);color:#fff;font-weight:700;font-size:12px;">${marcadores.length}</span></div>`,
+            className: '', iconSize: [38,38]
+          });
+        }
       });
-      const marker = L.marker([p.lat, p.lng], {icon: icono, pctPdg: p.pctPdg});
-      marker.bindPopup(`<b>${titleCase(p.local)}</b><br>${titleCase(p.comuna)}<br>Electores: ${(p.electores||0).toLocaleString('es-CL')}<br>% PDG diputados: ${p.pctPdg!=null?p.pctPdg+'%':'-'}<br>% Parisi 2025: ${p.pctParisi!=null?p.pctParisi+'%':'-'}`);
-      capaElectoral.addLayer(marker);
-    });
-    capaElectoral.addTo(mapaInstancia);
-  } else if(capaElectoral){
-    mapaInstancia.removeLayer(capaElectoral);
-    capaElectoral = null;
+      // Filtro defensivo: solo puntos con lat/lng finitos y numéricos —
+      // cualquier valor corrupto (texto tipo "ERROR"/"SIN_RESULTADO" que se
+      // haya colado) queda excluido en vez de romper el cálculo del mapa.
+      LOCALES_VOTACION.filter(p=>Number.isFinite(p.lat) && Number.isFinite(p.lng)).forEach(p=>{
+        const tamano = 16 + Math.sqrt(p.electores||0)/12;
+        const color = _colorPorApoyoPdg(p.pctPdg);
+        const icono = L.divIcon({
+          className: '',
+          html: `<div style="width:${tamano}px;height:${tamano}px;background:${color};transform:rotate(45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>`,
+          iconSize: [tamano, tamano]
+        });
+        const marker = L.marker([p.lat, p.lng], {icon: icono, pctPdg: p.pctPdg});
+        marker.bindPopup(`<b>${titleCase(p.local)}</b><br>${titleCase(p.comuna)}<br>Electores: ${(p.electores||0).toLocaleString('es-CL')}<br>% PDG diputados: ${p.pctPdg!=null?p.pctPdg+'%':'-'}<br>% Parisi 2025: ${p.pctParisi!=null?p.pctParisi+'%':'-'}`);
+        capaElectoral.addLayer(marker);
+      });
+      capaElectoral.addTo(mapaInstancia);
+    }
+  } finally {
+    _procesandoCapaElectoral = false;
   }
 }
 async function forzarGeocodificacionLocales(){
