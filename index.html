@@ -790,8 +790,8 @@
         </div>
         <div class="btnRow">
           <button class="btn btn-outline" onclick="forzarGeocodificacion()">Geocodificar más ahora</button>
-          <button class="btn btn-outline" onclick="forzarGeocodificacionLocales()">Geocodificar locales de votación</button>
-          <button class="btn btn-outline" onclick="forzarGeocodificacionFerias()">Geocodificar ferias libres</button>
+          <button class="btn btn-outline" onclick="forzarGeocodificacionLocales()" style="display:none;">Geocodificar locales de votación</button>
+          <button class="btn btn-outline" onclick="forzarGeocodificacionFerias()" style="display:none;">Geocodificar ferias libres</button>
           <button class="btn btn-outline" onclick="cargarMapa()">Actualizar mapa</button>
         </div>
       </div>
@@ -808,8 +808,8 @@
           <div class="modoTab" id="modoCalor" onclick="cambiarModoMapa('calor')">Mapa de calor</div>
         </div>
         <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:8px;">Capas:</span>
-        <button class="togglePill" id="pillCapaElectoral" onclick="toggleCapaElectoral()">+ Apoyo electoral PDG por local</button>
-        <button class="togglePill" id="pillCapaFerias" onclick="toggleCapaFerias()">+ Ferias libres</button>
+        <button class="togglePill" id="pillCapaElectoral" onclick="toggleCapaElectoral()" style="display:none;">+ Apoyo electoral PDG por local</button>
+        <button class="togglePill" id="pillCapaFerias" onclick="toggleCapaFerias()" style="display:none;">+ Ferias libres</button>
       </div>
       <div id="leyendaElectoral" style="display:none;font-size:11px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span>% apoyo PDG diputados 2025 por local de votación (rombos):</span>
@@ -2981,8 +2981,11 @@ async function cargarMapa(){
     renderCapaMapa();
     cargarCoordinadoresParaCartera();
     cargarResumenCarteras();
-    cargarLocalesVotacion();
-    cargarFeriasLibres();
+    // TEMPORAL — desactivado mientras se aísla y diagnostica el problema del
+    // mapa (ver notas de diagnóstico). Reactivar quitando el comentario de
+    // estas dos líneas una vez confirmado que Militantes funciona solo.
+    // cargarLocalesVotacion();
+    // cargarFeriasLibres();
   } catch(err){
     document.getElementById('mapaProgreso').innerText = 'No se pudo cargar el mapa: ' + err.message;
   }
